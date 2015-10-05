@@ -1,0 +1,4 @@
+*.o
+launch
+*~
+shell
