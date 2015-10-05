@@ -8,10 +8,14 @@ definition for the maximum length of a single argument string.  Is that
 ok?  Why or why not? (Hint: See the manpage for strtok.)
 ===Write your answer here:
 
+That is okay because strtok does not look for strings based on their length, but rather looks for a delimiting character.
+
 A2. Try adding a blank line to the launch_set file and running the
 launcher.  Something bad will happen.  Explain and fix this bug. 
 (All of the commands in the file should be executed without error.)
 ===Write your explanation here:
+
+When running the code with a blank line, the user will receive a segmentation fault because the program attempts to read a NULL value. We fixed this bug by surrounding the code inside the while loop in the launch_commands method with an if statement that checks to see if the next command is a new line character and if it is, we do not process it.
 
 You can test your bug fix using the command
 ./launch -test all
@@ -22,10 +26,14 @@ A3. Explain what the return value of fork() means and how this program
 uses it.
 ===Write your explanation here:
 
+It returns a negative value if it was unable to create a child process. It returns a 0 to the new child process. It will also return the process ID of the child process to the parent if it is able to create the process. This program uses the fork() command to create a child process that can run the commands that the user supplies. 
+
 A4. What would happen if this program did not use the fork function, but
 just called execv directly?  (You can test your hypothesis: Try changing
 line 100 from 'pid = fork();' to 'pid = 0;')
 ===Write your answer here:
+
+
 
 A5. What is the role of the status variable?
 ===Write your answer here:
