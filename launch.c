@@ -46,9 +46,6 @@ void parse_command(char *cmdline, command_t *cmd)
 
     /* Set argc and the command name. */
     cmd->argc = argc;
-	if(cmd->argv[0] == NULL) {
-
-	}
     cmd->name = (char *) malloc(strlen(cmd->argv[0])+1);
     strcpy(cmd->name, cmd->argv[0]);
 }
