@@ -33,14 +33,18 @@ just called execv directly?  (You can test your hypothesis: Try changing
 line 100 from 'pid = fork();' to 'pid = 0;')
 ===Write your answer here:
 
-
+It will only run the first command and overwrite the process.
 
 A5. What is the role of the status variable?
 ===Write your answer here:
 
+The status variable is used in the wait() method to determine the exit value of the child process.
+
 A6. Run './launch launch_set' several times.  You should see some
 variation in the output.  What is happening?  Why?
 ===Write your answer here:
+
+This program creates a parent process and child processes for each command in launch_set. After this, it will run those commands and then terminate the processes.
 
 Experimenting with other commands
 
@@ -48,10 +52,14 @@ A7. Try adding a nonexistant command (e.g., "fasdfjaskf" or
 "argelfraster") to the launch set.  What happens?  Why?
 ===Write your answer here:
 
+The output tells the user that there was an error executing the command, but the program still exectutes the rest of the commands. This happens because the exec() function will only return if an error has occurred, otherwise the child will simply be executed with no return.
+
 A8. Try adding the command 'cd ..' to the launch_set file.  What happens?
 Why?  (Hint: Learn what the 'which' command does; then try typing 'which
 cd' in bash.)
 ===Write your answer here:
+
+
 
 A9. Given what you learned in A6, is the behavior you saw in A8
 appropriate?  Is the cd command useful in the launch program?  Why or
