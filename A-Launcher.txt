@@ -59,9 +59,12 @@ Why?  (Hint: Learn what the 'which' command does; then try typing 'which
 cd' in bash.)
 ===Write your answer here:
 
-
+An error occurs and it cannot execute command cd .. because that command is a function in bash, not in the linux kernel.
 
 A9. Given what you learned in A6, is the behavior you saw in A8
 appropriate?  Is the cd command useful in the launch program?  Why or
 why not?
 ===Write your answer here:
+
+Yes the behavior is appropriate because cd has no output and the program can only execute commands that have an absolute path on the kernel. It is not useful in the launch program because it does not print anything
+
