@@ -45,6 +45,7 @@ int main (int argc, char** argv) {
 			printf("\n");
 			free(input);
 			free(args);
+			printf("Exiting process %d\n", getpid());
 			return EXIT_SUCCESS;
 		}
 
@@ -63,6 +64,7 @@ int main (int argc, char** argv) {
 		}
 		// Check for exit command
 		if(!strcmp(args[0], "exit")) {
+			printf("Exiting process %d\n", getpid());
 			return EXIT_SUCCESS;
 		}
 
