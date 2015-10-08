@@ -5,10 +5,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "shell_tests.h"
-#include <sys/types.h>
 #include <unistd.h>
+#include <sys/types.h>
 #include <sys/wait.h>
+#include "shell_tests.h"
 
 /* Your stuff here */
 #define true 1
@@ -56,23 +56,56 @@ int main (int argc, char** argv) {
 			arg_num++;
 			input = strtok(NULL, " \t\n");
 		}
+
+		// ignore spaces and newlines
 		if(args[0] == NULL) {
 			arg_num = 0;
 			free(input);
 			free(args);
 			continue;
 		}
+
 		// Check for exit command
 		if(!strcmp(args[0], "exit")) {
 			printf("Exiting process %d\n", getpid());
 			return EXIT_SUCCESS;
 		}
 
+		//Check for cd
+		if(!strcmp(args[0], "cd")) {
+			if(arg_num > 2) {
+				arg_num = 0;
+				command_num++;
+				free(input);
+				free(args);
+				fprintf(stderr, "cd: Too many arguments");
+				continue;
+			}
+			else if(arg_num == 2) {
+				chdir(args[1]);
+				arg_num = 0;
+				command_num++;
+				free(input);
+				free(args);
+				continue;
+			}
+			else if(arg_num == 1) {
+				char* home;
+				home = getenv("HOME");
+				chdir(home);
+				arg_num = 0;
+				command_num++;
+				free(input);
+				free(args);
+				continue;
+			}
+		}
+
 		// Create a new process to execute the command
 		child_pid = fork();
 		if(child_pid == 0) {
 			fprintf(stdout, "  Parent says 'child process has been forked with pid=%d'\n", getpid());
-			execv(args[0], args);
+			execvp(args[0], args);
 			fprintf(stderr, "Launch: error executing command: '%s'\n", args[0]);
 			return EXIT_FAILURE;
 		}
@@ -80,16 +113,18 @@ int main (int argc, char** argv) {
 			fprintf(stderr, "Launch: error while forking\n");
 			return EXIT_FAILURE;
 		}
-
-		child_pid = wait(&status);
-		if(child_pid < 0) {
-			fprintf(stderr, "Launch: error while waiting for child to terminate\n");
-			return EXIT_FAILURE;
+		child_pid = waitpid(0, &status, 0);
+		if(status != EXIT_SUCCESS) {
+			fprintf(stderr, "shell: Process %d exited with status %d\n", child_pid, status);
+		} else {
+			if(child_pid < 0) {
+				fprintf(stderr, "Launch: error while waiting for child to terminate\n");
+				return EXIT_FAILURE;
+			}
+			else {
+				fprintf(stdout, "  Parent says 'wait() returned so the child with pid=%d is finished.'\n", child_pid);
+			}
 		}
-		else {
-			fprintf(stdout, "  Parent says 'wait() returned so the child with pid=%d is finished.'\n", child_pid);
-		}
-		//fprintf(stdout, "your input is = (%s)\n", input);
 		command_num++;
 		arg_num = 0;
 		free(input);
