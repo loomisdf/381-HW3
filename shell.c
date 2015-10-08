@@ -16,6 +16,7 @@
 #define MAX_INPUT_SIZE 100
 
 int main (int argc, char** argv) {
+
     /* Declare variables here */
 	int pid = getpid();
 	int command_num = 1;
@@ -32,11 +33,20 @@ int main (int argc, char** argv) {
     /* Your code here */
 	while(true) {
 		fprintf(stdout, "Shell(pid=%d)%d> ", pid, command_num);
+
+		// args is for all the arguments passed in by the command line
 		char* input = malloc(MAX_INPUT_SIZE);
 		char** args = malloc(MAX_INPUT_SIZE);
 
 		// Use fgets for buffer overflow protection
-		fgets(input, MAX_INPUT_SIZE, stdin);
+		char* exit_sig = fgets(input, MAX_INPUT_SIZE, stdin);
+
+		if(exit_sig == NULL) {
+			printf("\n");
+			free(input);
+			free(args);
+			return EXIT_SUCCESS;
+		}
 
 		// Parse out the commands and the arguments
 		input = strtok(input, " \t\n");
@@ -46,7 +56,6 @@ int main (int argc, char** argv) {
 			input = strtok(NULL, " \t\n");
 		}
 		if(args[0] == NULL) {
-			command_num++;
 			arg_num = 0;
 			free(input);
 			free(args);
@@ -57,9 +66,10 @@ int main (int argc, char** argv) {
 			return EXIT_SUCCESS;
 		}
 
+		// Create a new process to execute the command
 		child_pid = fork();
 		if(child_pid == 0) {
-			fprintf(stdout, "Parent says 'child process has been forked with pid=%d'\n", getpid());
+			fprintf(stdout, "  Parent says 'child process has been forked with pid=%d'\n", getpid());
 			execv(args[0], args);
 			fprintf(stderr, "Launch: error executing command: '%s'\n", args[0]);
 			return EXIT_FAILURE;
@@ -75,7 +85,7 @@ int main (int argc, char** argv) {
 			return EXIT_FAILURE;
 		}
 		else {
-			fprintf(stdout, "Parent says 'wait() returned so the child with pid=%d is finished.'\n", child_pid);
+			fprintf(stdout, "  Parent says 'wait() returned so the child with pid=%d is finished.'\n", child_pid);
 		}
 		//fprintf(stdout, "your input is = (%s)\n", input);
 		command_num++;
