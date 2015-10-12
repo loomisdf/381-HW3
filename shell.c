@@ -81,6 +81,7 @@ int main (int argc, char** argv) {
 				fprintf(stderr, "cd: Too many arguments");
 				continue;
 			}
+			// if cd has the right # of args
 			else if(arg_num == 2) {
 				chdir(args[1]);
 				arg_num = 0;
@@ -89,6 +90,7 @@ int main (int argc, char** argv) {
 				free(args);
 				continue;
 			}
+			// Look for home directory
 			else if(arg_num == 1) {
 				char* home;
 				home = getenv("HOME");
