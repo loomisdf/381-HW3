@@ -1,0 +1,731 @@
+Script started on Sun 11 Oct 2015 09:19:01 PM EDT
+]0;daltron@daltron-server: ~/Documents/381-HW3daltron@daltron-server:~/Documents/381-HW3$ cat A-Launcher.txt 
+Exploring the Launcher
+----------------------
+
+Command line parsing questions
+
+A1. MAX_LINE_LEN and MAX_ARGS are defined, but there is no comparable
+definition for the maximum length of a single argument string.  Is that
+ok?  Why or why not? (Hint: See the manpage for strtok.)
+===Write your answer here:
+
+That is okay because strtok does not look for strings based on their length, but rather looks for a delimiting character.
+
+A2. Try adding a blank line to the launch_set file and running the
+launcher.  Something bad will happen.  Explain and fix this bug. 
+(All of the commands in the file should be executed without error.)
+===Write your explanation here:
+
+When running the code with a blank line, the user will receive a segmentation fault because the program attempts to read a NULL value. We fixed this bug by surrounding the code inside the while loop in the launch_commands method with an if statement that checks to see if the next command is a new line character and if it is, we do not process it.
+
+You can test your bug fix using the command
+./launch -test all
+
+Fork and exec questions
+
+A3. Explain what the return value of fork() means and how this program
+uses it.
+===Write your explanation here:
+
+It returns a negative value if it was unable to create a child process. It returns a 0 to the new child process. It will also return the process ID of the child process to the parent if it is able to create the process. This program uses the fork() command to create a child process that can run the commands that the user supplies. 
+
+A4. What would happen if this program did not use the fork function, but
+just called execv directly?  (You can test your hypothesis: Try changing
+line 100 from 'pid = fork();' to 'pid = 0;')
+===Write your answer here:
+
+It will only run the first command and overwrite the process.
+
+A5. What is the role of the status variable?
+===Write your answer here:
+
+The status variable is used in the wait() method to determine the exit value of the child process.
+
+A6. Run './launch launch_set' several times.  You should see some
+variation in the output.  What is happening?  Why?
+===Write your answer here:
+
+This program creates a parent process and child processes for each command in launch_set. After this, it will run those commands and then terminate the processes.
+
+Experimenting with other commands
+
+A7. Try adding a nonexistant command (e.g., "fasdfjaskf" or
+"argelfraster") to the launch set.  What happens?  Why?
+===Write your answer here:
+
+The output tells the user that there was an error executing the command, but the program still exectutes the rest of the commands. This happens because the exec() function will only return if an error has occurred, otherwise the child will simply be executed with no return.
+
+A8. Try adding the command 'cd ..' to the launch_set file.  What happens?
+Why?  (Hint: Learn what the 'which' command does; then try typing 'which
+cd' in bash.)
+===Write your answer here:
+
+An error occurs and it cannot execute command cd .. because that command is a function in bash, not in the linux kernel.
+
+A9. Given what you learned in A6, is the behavior you saw in A8
+appropriate?  Is the cd command useful in the launch program?  Why or
+why not?
+===Write your answer here:
+
+Yes the behavior is appropriate because cd has no output and the program can only execute commands that have an absolute path on the kernel. It is not useful in the launch program because it does not print anything
+
+]0;daltron@daltron-server: ~/Documents/381-HW3daltron@daltron-server:~/Documents/381-HW3$ [K]0;daltron@daltron-server: ~/Documents/381-HW3daltron@daltron-server:~/Documents/381-HW3$  catr[K[K[K[Kcat launch.c
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/wait.h>
+#include <unistd.h>
+#include <assert.h>
+#include "launch_tests.h"
+
+#define MAX_LINE_LEN 256
+#define MAX_ARGS (MAX_LINE_LEN/2)
+#define WHITESPACE " \t\n"
+
+typedef struct {		/* Struct to contain a parsed command */
+    char* name;
+    int argc;
+    char* argv[MAX_ARGS+1];
+} command_t;
+
+/* Given a command line and a pointer to an empty command_t structure,
+ * this function will parse the command line and set values for name,
+ * argc, and argv.
+ * Preconditions:
+ * * cmdline is null-terminated.
+ * * strlen(cmdline) < MAX_LIN_LENGTH
+ * Postconditions:
+ * * 0 <= argc <= MAX_ARGS
+ * * argc is the number of "tokens" or words on the command line
+ * * argv[argc] is a null pointer
+ * * argv[0] through argv[argc-1] are pointers to those tokens
+ * * name = argv[0]
+ */
+void parse_command(char *cmdline, command_t *cmd)
+{
+    int argc = 0;
+    char* word;
+
+    /* Fill argv. */
+    word = strtok(cmdline, WHITESPACE);
+    while (word) {
+        cmd->argv[argc] = (char *) malloc(strlen(word)+1);
+		strcpy(cmd->argv[argc], word);
+		word = strtok(NULL, WHITESPACE);
+		argc++;
+    }
+    cmd->argv[argc] = NULL;
+
+    /* Set argc and the command name. */
+    cmd->argc = argc;
+    cmd->name = (char *) malloc(strlen(cmd->argv[0])+1);
+    strcpy(cmd->name, cmd->argv[0]);
+}
+
+/* Frees dynamically allocated strings from a command. */
+void free_command(command_t *cmd) {
+    int i;
+    for (i=0; ((i < cmd->argc) && (cmd->argv[i] != NULL)); i++) {
+        free(cmd->argv[i]);
+    }
+    free(cmd->name);
+}
+
+/* Given the name of a file containing a list of commands,
+ * executes the commands in the file.
+ * Returns EXIT_SUCCESS.
+ */
+int launch_commands(const char *filename) {
+    int i;
+    int pid, num_children;
+    int status;
+    FILE* file;
+    char cmdline[MAX_LINE_LEN];
+    command_t command;
+
+    /* Open the file that conains the set of commands. */
+    file = fopen(filename, "r");
+    if (!file) {
+        fprintf(stderr, "launch: Error opening file %s\n", filename);
+	return EXIT_FAILURE;
+    }
+
+    /* Report the process id. */
+    printf("launch: Parent process id is %d\n", getpid());
+
+    /* Process each command in the launch file. */
+    num_children = 0;
+    while (fgets(cmdline, MAX_LINE_LEN, file)) {
+		if(!strcmp(cmdline, "\n")) {
+			continue;
+		}
+        parse_command(cmdline, &command);
+
+		/* Create a child process to execute the command. */
+		pid = fork();
+		if (pid == 0) {
+			/* The child executes the command. */
+			execv(command.name, command.argv);
+			fprintf(stderr, "launch: Error executing command '%s'\n",
+						command.name);
+				return EXIT_FAILURE;
+		} else if (pid < 0) {
+				fprintf(stderr, "launch: Error while forking\n");
+			return EXIT_FAILURE;
+		}
+
+		/* if pid > 0, then this is the parent process and there was
+		 * no error.  The parent reports the pid of the child process.
+		 */
+		printf("launch: Forked child process %d with command '%s'\n",
+			   pid, command.name);
+		num_children++;
+
+		/* The parent frees dynamically allocated memory in the
+			 * command data structure and continues to the next command.
+		 */
+		free_command(&command);
+    }
+    if (ferror(file)) {
+        fprintf(stderr, "launch: Error while reading from file\n");
+		return EXIT_FAILURE;
+    }
+
+    /* The parent closes the file. */
+    fclose(file);
+    printf("launch: Launched %d commands\n", num_children);
+
+    /* The parent terminates after all children have terminated. */
+    for (i=0; i < num_children; i++) {
+        pid = wait(&status);
+		if (pid < 0) {
+			fprintf(stderr,
+						"launch: Error while waiting for child to terminate\n");
+			return EXIT_FAILURE;
+		} else  {
+				printf("launch: Child %d terminated\n", pid);
+		}
+    }
+    printf("launch: Terminating successfully\n");
+    return EXIT_SUCCESS;
+}
+
+
+int main(int argc, char* argv[]) {
+    /* Entry point for the testrunner program */
+    if (argc > 1 && !strcmp(argv[1], "-test")) {
+        run_launch_tests(argc - 1, argv + 1);
+        return EXIT_SUCCESS;
+    }
+
+    /* Read the command-line parameters for this program. */
+    if (argc != 2) {
+        fprintf(stderr, "Usage: launch <launch_set_filename>\n");
+	return EXIT_FAILURE;
+    }
+
+    /* Engage! */
+    return launch_commands(argv[1]);
+}
+]0;daltron@daltron-server: ~/Documents/381-HW3daltron@daltron-server:~/Documents/381-HW3$  make lauc[K[Kunch
+make: 'launch' is up to date.
+]0;daltron@daltron-server: ~/Documents/381-HW3daltron@daltron-server:~/Documents/381-HW3$  ./launch -test all
+Running tests...
+ 1.blanks              :testrunner:Test terminated by signal 11
+testrunner:waitpid returned 4651 (child_pid=4651,wait_status=139):FAIL *
+
+Test Results:1 tests,0 passed,1 failed.
+]0;daltron@daltron-server: ~/Documents/381-HW3daltron@daltron-server:~/Documents/381-HW3$  cat README.md
+Team 12:
+Daltin Loomis - loomisdf
+Evan Baker - bakerej4
+Chris Schipper - schippcj
+
+Our shell took roughly 8 hours to implement. We didn't run into too many problems other than matching our own output to the example. All of the problemswe had were with the C-language itself and some seg faults.
+
+We managed to get all the parts working, including the changing directories. We didn't do any of the extra credit parts. For solving the problems we consulted the linux man pages, and if we were really stuck we looked at some stack overflow questions. Usually the man pages were enough.
+
+]0;daltron@daltron-server: ~/Documents/381-HW3daltron@daltron-server:~/Documents/381-HW3$  cat shell.c
+/**
+ * shell.c
+ **/
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+#include "shell_tests.h"
+
+/* Your stuff here */
+#define true 1
+#define false 0
+#define MAX_INPUT_SIZE 100
+
+int main (int argc, char** argv) {
+
+    /* Declare variables here */
+	int pid = getpid();
+	int command_num = 1;
+	int child_pid;
+	int arg_num = 0;
+	int status;
+
+    /* Entry point for the testrunner program */
+    /* DO NOT DELETE */
+    if ((argc > 1) && !strcmp(argv[1], "-test")) {
+        run_shell_tests(argc - 1, argv + 1);
+        return EXIT_SUCCESS;
+    }
+    /* Your code here */
+	while(true) {
+		fprintf(stdout, "Shell(pid=%d)%d> ", pid, command_num);
+
+		// args is for all the arguments passed in by the command line
+		char* input = malloc(MAX_INPUT_SIZE);
+		char** args = malloc(MAX_INPUT_SIZE);
+
+		// Use fgets for buffer overflow protection
+		char* exit_sig = fgets(input, MAX_INPUT_SIZE, stdin);
+
+		if(exit_sig == NULL) {
+			printf("\n");
+			free(input);
+			free(args);
+			printf("Exiting process %d\n", getpid());
+			return EXIT_SUCCESS;
+		}
+
+		// Parse out the commands and the arguments
+		input = strtok(input, " \t\n");
+		while(input != NULL) {
+			args[arg_num] = input;
+			arg_num++;
+			input = strtok(NULL, " \t\n");
+		}
+
+		// ignore spaces and newlines
+		if(args[0] == NULL) {
+			arg_num = 0;
+			free(input);
+			free(args);
+			continue;
+		}
+
+		// Check for exit command
+		if(!strcmp(args[0], "exit")) {
+			printf("Exiting process %d\n", getpid());
+			return EXIT_SUCCESS;
+		}
+
+		//Check for cd
+		if(!strcmp(args[0], "cd")) {
+			if(arg_num > 2) {
+				arg_num = 0;
+				command_num++;
+				free(input);
+				free(args);
+				fprintf(stderr, "cd: Too many arguments");
+				continue;
+			}
+			// if cd has the right # of args
+			else if(arg_num == 2) {
+				chdir(args[1]);
+				arg_num = 0;
+				command_num++;
+				free(input);
+				free(args);
+				continue;
+			}
+			// Look for home directory
+			else if(arg_num == 1) {
+				char* home;
+				home = getenv("HOME");
+				chdir(home);
+				arg_num = 0;
+				command_num++;
+				free(input);
+				free(args);
+				continue;
+			}
+		}
+
+		// Create a new process to execute the command
+		child_pid = fork();
+		if(child_pid == 0) {
+			fprintf(stdout, "  Parent says 'child process has been forked with pid=%d'\n", getpid());
+			execvp(args[0], args);
+			fprintf(stderr, "Launch: error executing command: '%s'\n", args[0]);
+			return EXIT_FAILURE;
+		}
+		else if(child_pid < 0) {
+			fprintf(stderr, "Launch: error while forking\n");
+			return EXIT_FAILURE;
+		}
+		child_pid = waitpid(0, &status, 0);
+		if(status != EXIT_SUCCESS) {
+			fprintf(stderr, "shell: Process %d exited with status %d\n", child_pid, status);
+		} else {
+			if(child_pid < 0) {
+				fprintf(stderr, "Launch: error while waiting for child to terminate\n");
+				return EXIT_FAILURE;
+			}
+			else {
+				fprintf(stdout, "  Parent says 'wait() returned so the child with pid=%d is finished.'\n", child_pid);
+			}
+		}
+		command_num++;
+		arg_num = 0;
+		free(input);
+		free(args);
+	}
+
+    return EXIT_SUCCESS;
+}
+]0;daltron@daltron-server: ~/Documents/381-HW3daltron@daltron-server:~/Documents/381-HW3$  make shell
+make: 'shell' is up to date.
+]0;daltron@daltron-server: ~/Documents/381-HW3daltron@daltron-server:~/Documents/381-HW3$  ./shell -test all
+Running tests...
+ 1.basic               ::FAIL *
+
+Test Results:1 tests,0 passed,1 failed.
+]0;daltron@daltron-server: ~/Documents/381-HW3daltron@daltron-server:~/Documents/381-HW3$  exit
+
+Script done on Sun 11 Oct 2015 09:20:38 PM EDT
+ look for strings based on their length, but rather looks for a delimiting character.
+
+A2. Try adding a blank line to the launch_set file and running the
+launcher.  Something bad will happen.  Explain and fix this bug. 
+(All of the commands in the file should be executed without error.)
+===Write your explanation here:
+
+When running the code with a blank line, the user will receive a segmentation fault because the program attempts to read a NULL value. We fixed this bug by surrounding the code inside the while loop in the launch_commands method with an if statement that checks to see if the next command is a new line character and if it is, we do not process it.
+
+You can test your bug fix using the command
+./launch -test all
+
+Fork and exec questions
+
+A3. Explain what the return value of fork() means and how this program
+uses it.
+===Write your explanation here:
+
+It returns a negative value if it was unable to create a child process. It returns a 0 to the new child process. It will also return the process ID of the child process to the parent if it is able to create the process. This program uses the fork() command to create a child process that can run the commands that the user supplies. 
+
+A4. What would happen if this program did not use the fork function, but
+just called execv directly?  (You can test your hypothesis: Try changing
+line 100 from 'pid = fork();' to 'pid = 0;')
+===Write your answer here:
+
+It will only run the first command and overwrite the process.
+
+A5. What is the role of the status variable?
+===Write your answer here:
+
+The status variable is used in the wait() method to determine the exit value of the child process.
+
+A6. Run './launch launch_set' several times.  You should see some
+variation in the output.  What is happening?  Why?
+===Write your answer here:
+
+This program creates a parent process and child processes for each command in launch_set. After this, it will run those commands and then terminate the processes.
+
+Experimenting with other commands
+
+A7. Try adding a nonexistant command (e.g., "fasdfjaskf" or
+"argelfraster") to the launch set.  What happens?  Why?
+===Write your answer here:
+
+The output tells the user that there was an error executing the command, but the program still exectutes the rest of the commands. This happens because the exec() function will only return if an error has occurred, otherwise the child will simply be executed with no return.
+
+A8. Try adding the command 'cd ..' to the launch_set file.  What happens?
+Why?  (Hint: Learn what the 'which' command does; then try typing 'which
+cd' in bash.)
+===Write your answer here:
+
+An error occurs and it cannot execute command cd .. because that command is a function in bash, not in the linux kernel.
+
+A9. Given what you learned in A6, is the behavior you saw in A8
+appropriate?  Is the cd command useful in the launch program?  Why or
+why not?
+===Write your answer here:
+
+Yes the behavior is appropriate because cd has no output and the program can only execute commands that have an absolute path on the kernel. It is not useful in the launch program because it does not print anything
+
+]0;daltron@daltron-server: ~/Documents/381-HW3daltron@daltron-server:~/Documents/381-HW3$ [K]0;daltron@daltron-server: ~/Documents/381-HW3daltron@daltron-server:~/Documents/381-HW3$  catr[K[K[K[Kcat launch.c
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/wait.h>
+#include <unistd.h>
+#include <assert.h>
+#include "launch_tests.h"
+
+#define MAX_LINE_LEN 256
+#define MAX_ARGS (MAX_LINE_LEN/2)
+#define WHITESPACE " \t\n"
+
+typedef struct {		/* Struct to contain a parsed command */
+    char* name;
+    int argc;
+    char* argv[MAX_ARGS+1];
+} command_t;
+
+/* Given a command line and a pointer to an empty command_t structure,
+ * this function will parse the command line and set values for name,
+ * argc, and argv.
+ * Preconditions:
+ * * cmdline is null-terminated.
+ * * strlen(cmdline) < MAX_LIN_LENGTH
+ * Postconditions:
+ * * 0 <= argc <= MAX_ARGS
+ * * argc is the number of "tokens" or words on the command line
+ * * argv[argc] is a null pointer
+ * * argv[0] through argv[argc-1] are pointers to those tokens
+ * * name = argv[0]
+ */
+void parse_command(char *cmdline, command_t *cmd)
+{
+    int argc = 0;
+    char* word;
+
+    /* Fill argv. */
+    word = strtok(cmdline, WHITESPACE);
+    while (word) {
+        cmd->argv[argc] = (char *) malloc(strlen(word)+1);
+		strcpy(cmd->argv[argc], word);
+		word = strtok(NULL, WHITESPACE);
+		argc++;
+    }
+    cmd->argv[argc] = NULL;
+
+    /* Set argc and the command name. */
+    cmd->argc = argc;
+    cmd->name = (char *) malloc(strlen(cmd->argv[0])+1);
+    strcpy(cmd->name, cmd->argv[0]);
+}
+
+/* Frees dynamically allocated strings from a command. */
+void free_command(command_t *cmd) {
+    int i;
+    for (i=0; ((i < cmd->argc) && (cmd->argv[i] != NULL)); i++) {
+        free(cmd->argv[i]);
+    }
+    free(cmd->name);
+}
+
+/* Given the name of a file containing a list of commands,
+ * executes the commands in the file.
+ * Returns EXIT_SUCCESS.
+ */
+int launch_commands(const char *filename) {
+    int i;
+    int pid, num_children;
+    int status;
+    FILE* file;
+    char cmdline[MAX_LINE_LEN];
+    command_t command;
+
+    /* Open the file that conains the set of commands. */
+    file = fopen(filename, "r");
+    if (!file) {
+        fprintf(stderr, "launch: Error opening file %s\n", filename);
+	return EXIT_FAILURE;
+    }
+
+    /* Report the process id. */
+    printf("launch: Parent process id is %d\n", getpid());
+
+    /* Process each command in the launch file. */
+    num_children = 0;
+    while (fgets(cmdline, MAX_LINE_LEN, file)) {
+		if(!strcmp(cmdline, "\n")) {
+			continue;
+		}
+        parse_command(cmdline, &command);
+
+		/* Create a child process to execute the command. */
+		pid = fork();
+		if (pid == 0) {
+			/* The child executes the command. */
+			execv(command.name, command.argv);
+			fprintf(stderr, "launch: Error executing command '%s'\n",
+						command.name);
+				return EXIT_FAILURE;
+		} else if (pid < 0) {
+				fprintf(stderr, "launch: Error while forking\n");
+			return EXIT_FAILURE;
+		}
+
+		/* if pid > 0, then this is the parent process and there was
+		 * no error.  The parent reports the pid of the child process.
+		 */
+		printf("launch: Forked child process %d with command '%s'\n",
+			   pid, command.name);
+		num_children++;
+
+		/* The parent frees dynamically allocated memory in the
+			 * command data structure and continues to the next command.
+		 */
+		free_command(&command);
+    }
+    if (ferror(file)) {
+        fprintf(stderr, "launch: Error while reading from file\n");
+		return EXIT_FAILURE;
+    }
+
+    /* The parent closes the file. */
+    fclose(file);
+    printf("launch: Launched %d commands\n", num_children);
+
+    /* The parent terminates after all children have terminated. */
+    for (i=0; i < num_children; i++) {
+        pid = wait(&status);
+		if (pid < 0) {
+			fprintf(stderr,
+						"launch: Error while waiting for child to terminate\n");
+			return EXIT_FAILURE;
+		} else  {
+				printf("launch: Child %d terminated\n", pid);
+		}
+    }
+    printf("launch: Terminating successfully\n");
+    return EXIT_SUCCESS;
+}
+
+
+int main(int argc, char* argv[]) {
+    /* Entry point for the testrunner program */
+    if (argc > 1 && !strcmp(argv[1], "-test")) {
+        run_launch_tests(argc - 1, argv + 1);
+        return EXIT_SUCCESS;
+    }
+
+    /* Read the command-line parameters for this program. */
+    if (argc != 2) {
+        fprintf(stderr, "Usage: launch <launch_set_filename>\n");
+	return EXIT_FAILURE;
+    }
+
+    /* Engage! */
+    return launch_commands(argv[1]);
+}
+]0;daltron@daltron-server: ~/Documents/381-HW3daltron@daltron-server:~/Documents/381-HW3$  make lauc[K[Kunch
+make: 'launch' is up to date.
+]0;daltron@daltron-server: ~/Documents/381-HW3daltron@daltron-server:~/Documents/381-HW3$  ./launch -test all
+Running tests...
+ 1.blanks              :testrunner:Test terminated by signal 11
+testrunner:waitpid returned 4651 (child_pid=4651,wait_status=139):FAIL *
+
+Test Results:1 tests,0 passed,1 failed.
+]0;daltron@daltron-server: ~/Documents/381-HW3daltron@daltron-server:~/Documents/381-HW3$  cat README.md
+Team 12:
+Daltin Loomis - loomisdf
+Evan Baker - bakerej4
+Chris Schipper - schippcj
+
+Our shell took roughly 8 hours to implement. We didn't run into too many problems other than matching our own output to the example. All of the problemswe had were with the C-language itself and some seg faults.
+
+We managed to get all the parts working, including the changing directories. We didn't do any of the extra credit parts. For solving the problems we consulted the linux man pages, and if we were really stuck we looked at some stack overflow questions. Usually the man pages were enough.
+
+]0;daltron@daltron-server: ~/Documents/381-HW3daltron@daltron-server:~/Documents/381-HW3$  cat shell.c
+/**
+ * shell.c
+ **/
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+#include "shell_tests.h"
+
+/* Your stuff here */
+#define true 1
+#define false 0
+#define MAX_INPUT_SIZE 100
+
+int main (int argc, char** argv) {
+
+    /* Declare variables here */
+	int pid = getpid();
+	int command_num = 1;
+	int child_pid;
+	int arg_num = 0;
+	int status;
+
+    /* Entry point for the testrunner program */
+    /* DO NOT DELETE */
+    if ((argc > 1) && !strcmp(argv[1], "-test")) {
+        run_shell_tests(argc - 1, argv + 1);
+        return EXIT_SUCCESS;
+    }
+    /* Your code here */
+	while(true) {
+		fprintf(stdout, "Shell(pid=%d)%d> ", pid, command_num);
+
+		// args is for all the arguments passed in by the command line
+		char* input = malloc(MAX_INPUT_SIZE);
+		char** args = malloc(MAX_INPUT_SIZE);
+
+		// Use fgets for buffer overflow protection
+		char* exit_sig = fgets(input, MAX_INPUT_SIZE, stdin);
+
+		if(exit_sig == NULL) {
+			printf("\n");
+			free(input);
+			free(args);
+			printf("Exiting process %d\n", getpid());
+			return EXIT_SUCCESS;
+		}
+
+		// Parse out the commands and the arguments
+		input = strtok(input, " \t\n");
+		while(input != NULL) {
+			args[arg_num] = input;
+			arg_num++;
+			input = strtok(NULL, " \t\n");
+		}
+
+		// ignore spaces and newlines
+		if(args[0] == NULL) {
+			arg_num = 0;
+			free(input);
+			free(args);
+			continue;
+		}
+
+		// Check for exit command
+		if(!strcmp(args[0], "exit")) {
+			printf("Exiting process %d\n", getpid());
+			return EXIT_SUCCESS;
+		}
+
+		//Check for cd
+		if(!strcmp(args[0], "cd")) {
+			if(arg_num > 2) {
+				arg_num = 0;
+				command_num++;
+				free(input);
+				free(args);
+				fprintf(stderr, "cd: Too many arguments");
+				continue;
+			}
+			// if cd has the right # of args
+			else if(arg_num == 2) {
+				chdir(args[1]);
+				arg_num = 0;
+				command_num++;
+				free(input);
+				free(args);
+				continue;
+			}
+			// Look for home directory
+			else if(arg_num == 1) {
+				char* home;
+				home = getenv("HOME");
+				chdir(home);
+				arg_num 
