@@ -1,5 +1,11 @@
 /**
- * shell.c
+ * Team 12:
+ * Daltin Loomis - loomisdf
+ * Evan Baker - bakerej4
+ * Chris Schipper - schippjc
+ * CSE 381
+ * 10/12/15
+ * Shell.c, HW#3
  **/
 
 #include <stdio.h>
